@@ -53,11 +53,8 @@ def _setup_test_db():
 
         test_db_name = _get_test_db_name(connection)
         connection.settings_dict['NAME'] = test_db_name
-
-        # SUPPORTS_TRANSACTIONS is not needed in newer versions of djangoo
-        if not hasattr(connection.features, 'supports_transactions'):
-            can_rollback = connection.creation._rollback_works()
-            connection.settings_dict['SUPPORTS_TRANSACTIONS'] = can_rollback
+        can_rollback = connection.creation._rollback_works()
+        connection.settings_dict['SUPPORTS_TRANSACTIONS'] = can_rollback
 
         # Trigger side effects.
         connection.cursor()
@@ -104,7 +101,7 @@ class SeleniumPlugin(Plugin):
             if isinstance(test.test, nose.case.MethodTestCase):
                 self = test.test.test.im_self
             elif isinstance(test.test, TestCase):
-                self = test.test._exc_info.im_self
+                self = test.test
 
             self.selenium.stop()
             del self.selenium
@@ -139,7 +136,8 @@ class SeleniumPlugin(Plugin):
             if isinstance(test.test, nose.case.MethodTestCase):
                 test.test.test.im_self.selenium = sel
             elif isinstance(test.test, TestCase):
-                test.test._exc_info.im_self.selenium = sel
+                test.test.selenium = sel
+                # test.test._exc_info.im_self.selenium = self
             else:
                 raise SkipTest("Test skipped because it's not a method.")
 
@@ -220,12 +218,6 @@ class StoppableWSGIServer(ThreadingMixIn, HTTPServer):
             'SCRIPT_NAME': '',
         }
 
-    def get_app(self):
-        return self.application
-
-    def set_app(self,application):
-        self.application = application
-
 
 class AbstractLiveServerPlugin(Plugin):
     """Base class for live servers."""
@@ -249,12 +241,10 @@ class AbstractLiveServerPlugin(Plugin):
         from django.conf import settings
 
         test_case = get_test_case_class(test)
-
         if not self.server_started and \
            getattr(test_case, "start_live_server", False):
-
+            
             _setup_test_db()
-
             # Raises an exception if not.
             settings.TEST_MODE = True
 
@@ -356,7 +346,7 @@ class CherryPyLiveServerPlugin(AbstractLiveServerPlugin):
                     environ['PATH_INFO']
 
             return _application(environ, start_response)
-
+            
         self.httpd = CherryPyWSGIServer((address, port), application,
                                         server_name='django-test-http')
         self.httpd_thread = Thread(target=self.httpd.start)
